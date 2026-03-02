@@ -1,0 +1,255 @@
+package ardo314:math@0.0.3;
+
+interface types {
+    // x, y
+    type vector2d = tuple<f32, f32>;
+
+    // x, y, z
+    type vector3d = tuple<f32, f32, f32>;
+
+    // x, y, z, w
+    type vector4d = tuple<f32, f32, f32, f32>;
+
+    // m[row column]
+    record matrix2x2 {
+        m00: f32,
+        m10: f32,
+        m01: f32,
+        m11: f32,
+    }
+
+    // m[row column]
+    record matrix3x3 {
+        m00: f32,
+        m10: f32,
+        m20: f32,
+        m01: f32,
+        m11: f32,
+        m21: f32,
+        m02: f32,
+        m12: f32,
+        m22: f32,
+    }
+
+    // m[row column]
+    record matrix4x4 {
+        m00: f32,
+        m10: f32,
+        m20: f32,
+        m30: f32,
+        m01: f32,
+        m11: f32,
+        m21: f32,
+        m31: f32,
+        m02: f32,
+        m12: f32,
+        m22: f32,
+        m32: f32,
+        m03: f32,
+        m13: f32,
+        m23: f32,
+        m33: f32,
+    }
+
+    // axis with angle magnitude
+    type rotation-vector = tuple<f32, f32, f32>;
+
+    // axis, angle
+    type axis-angle = tuple<vector3d, f32>;
+
+    // x, y, z, w
+    type quaternion = tuple<f32, f32, f32, f32>;
+
+    // x, y, theta
+    type pose2d = tuple<f32, f32, f32>;
+
+    // x, y, z, rx, ry, rz (axis with angle magnitude)
+    type pose3d = tuple<f32, f32, f32, f32, f32, f32>;
+
+    // x, y
+    type point2d = tuple<f32, f32>;
+
+    // x, y, z
+    type point3d = tuple<f32, f32, f32>;
+
+    record plane {
+        normal: vector3d,
+        d: f32,
+    }
+}
+
+interface vector2d {
+    use types.{vector2d};
+
+    add: func(lhs: vector2d, rhs: vector2d) -> vector2d;
+    sub: func(lhs: vector2d, rhs: vector2d) -> vector2d;
+    dot: func(lhs: vector2d, rhs: vector2d) -> f32;
+    add-f32: func(lhs: vector2d, rhs: f32) -> vector2d;
+    sub-f32: func(lhs: vector2d, rhs: f32) -> vector2d;
+    mul-f32: func(lhs: vector2d, rhs: f32) -> vector2d;
+    div-f32: func(lhs: vector2d, rhs: f32) -> vector2d;
+    neg: func(v: vector2d) -> vector2d;
+    sqr-length: func(v: vector2d) -> f32;
+    length: func(v: vector2d) -> f32;
+    normalize: func(v: vector2d) -> vector2d;
+}
+
+interface vector3d {
+    use types.{vector3d};
+
+    add: func(lhs: vector3d, rhs: vector3d) -> vector3d;
+    sub: func(lhs: vector3d, rhs: vector3d) -> vector3d;
+    dot: func(lhs: vector3d, rhs: vector3d) -> f32;
+    add-f32: func(lhs: vector3d, rhs: f32) -> vector3d;
+    sub-f32: func(lhs: vector3d, rhs: f32) -> vector3d;
+    mul-f32: func(lhs: vector3d, rhs: f32) -> vector3d;
+    div-f32: func(lhs: vector3d, rhs: f32) -> vector3d;
+    neg: func(v: vector3d) -> vector3d;
+    sqr-length: func(v: vector3d) -> f32;
+    length: func(v: vector3d) -> f32;
+    normalize: func(v: vector3d) -> vector3d;
+    cross: func(lhs: vector3d, rhs: vector3d) -> vector3d;
+}
+
+interface vector4d {
+    use types.{vector4d};
+
+    add: func(lhs: vector4d, rhs: vector4d) -> vector4d;
+    sub: func(lhs: vector4d, rhs: vector4d) -> vector4d;
+    dot: func(lhs: vector4d, rhs: vector4d) -> f32;
+    add-f32: func(lhs: vector4d, rhs: f32) -> vector4d;
+    sub-f32: func(lhs: vector4d, rhs: f32) -> vector4d;
+    mul-f32: func(lhs: vector4d, rhs: f32) -> vector4d;
+    div-f32: func(lhs: vector4d, rhs: f32) -> vector4d;
+    neg: func(v: vector4d) -> vector4d;
+    sqr-length: func(v: vector4d) -> f32;
+    length: func(v: vector4d) -> f32;
+    normalize: func(v: vector4d) -> vector4d;
+}
+
+interface matrix2x2 {
+    use types.{matrix2x2, vector2d};
+
+    identity: func() -> matrix2x2;
+    mul: func(lhs: matrix2x2, rhs: matrix2x2) -> matrix2x2;
+    mul-vector2d: func(lhs: matrix2x2, rhs: vector2d) -> vector2d;
+}
+
+interface matrix3x3 {
+    use types.{matrix3x3, vector3d};
+
+    identity: func() -> matrix3x3;
+    mul: func(lhs: matrix3x3, rhs: matrix3x3) -> matrix3x3;
+    mul-vector3d: func(lhs: matrix3x3, rhs: vector3d) -> vector3d;
+}
+
+interface matrix4x4 {
+    use types.{matrix4x4, vector4d};
+
+    identity: func() -> matrix4x4;
+    mul: func(lhs: matrix4x4, rhs: matrix4x4) -> matrix4x4;
+    mul-vector4d: func(lhs: matrix4x4, rhs: vector4d) -> vector4d;
+}
+
+interface rotation-matrix2x2 {
+    use types.{matrix2x2};
+
+    to-angle: func(m: matrix2x2) -> f32;
+    from-angle: func(a: f32) -> matrix2x2;
+}
+
+interface rotation-matrix3x3 {
+    use types.{rotation-vector, quaternion, matrix3x3, axis-angle};
+
+    to-axis-angle: func(m: matrix3x3) -> axis-angle;
+    to-rotation-vector: func(m: matrix3x3) -> rotation-vector;
+    to-quaternion: func(m: matrix3x3) -> quaternion;
+}
+
+interface rotation-vector {
+    use types.{rotation-vector, vector3d, quaternion, matrix3x3, axis-angle};
+
+    identity: func() -> rotation-vector;
+
+    mul-f32: func(rv: rotation-vector, s: f32) -> rotation-vector;
+    div-f32: func(rv: rotation-vector, s: f32) -> rotation-vector;
+
+    to-axis-angle: func(rv: rotation-vector) -> axis-angle;
+    to-quaternion: func(rv: rotation-vector) -> quaternion;
+    to-matrix3x3: func(rv: rotation-vector) -> matrix3x3;
+}
+
+interface axis-angle {
+    use types.{axis-angle, rotation-vector, quaternion, matrix3x3};
+
+    identity: func() -> axis-angle;
+
+    mul-f32: func(aa: axis-angle, s: f32) -> axis-angle;
+    div-f32: func(aa: axis-angle, s: f32) -> axis-angle;
+
+    to-rotation-vector: func(aa: axis-angle) -> rotation-vector;
+    to-quaternion: func(aa: axis-angle) -> quaternion;
+    to-matrix3x3: func(aa: axis-angle) -> matrix3x3;
+}
+
+interface quaternion {
+    use types.{quaternion, rotation-vector, vector3d, matrix3x3, axis-angle};
+
+    identity: func() -> quaternion;
+
+    to-axis-angle: func(q: quaternion) -> axis-angle;
+    to-rotation-vector: func(q: quaternion) -> rotation-vector;
+    to-matrix3x3: func(q: quaternion) -> matrix3x3;
+}
+
+interface point2d {
+    use types.{point2d, vector2d};
+
+    add-vector2d: func(p: point2d, v: vector2d) -> point2d;
+    sub-vector2d: func(p: point2d, v: vector2d) -> point2d;
+}
+
+interface point3d {
+    use types.{point3d, vector3d};
+
+    add-vector3d: func(p: point3d, v: vector3d) -> point3d;
+    sub-vector3d: func(p: point3d, v: vector3d) -> point3d;
+}
+
+interface pose2d {
+    use types.{pose2d, point2d};
+
+    position: func(p: pose2d) -> point2d;
+    rotation: func(p: pose2d) -> f32;
+}
+
+interface pose3d {
+    use types.{pose3d, point3d, rotation-vector};
+
+    position: func(p: pose3d) -> point3d;
+    rotation: func(p: pose3d) -> rotation-vector;
+}
+
+interface plane {
+    use types.{plane};
+}
+
+world math {
+    export types;
+    export vector2d;
+    export vector3d;
+    export vector4d;
+    export matrix2x2;
+    export matrix3x3;
+    export matrix4x4;
+    export rotation-vector;
+    export rotation-matrix2x2;
+    export rotation-matrix3x3;
+    export axis-angle;
+    export quaternion;
+    export point2d;
+    export point3d;
+    export pose2d;
+    export pose3d;
+    export plane;
+}

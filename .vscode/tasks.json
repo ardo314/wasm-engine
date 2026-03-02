@@ -1,0 +1,17 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Update dependencies",
+      "type": "shell",
+      "command": "cargo component update",
+      "problemMatcher": []
+    },
+    {
+      "label": "Generate bindings",
+      "type": "shell",
+      "command": "cargo component bindings",
+      "problemMatcher": []
+    }
+  ]
+}

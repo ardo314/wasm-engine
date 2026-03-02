@@ -1,0 +1,16 @@
+{
+  "name": "wasm-engine-dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "eamodio.gitlens",
+        "esbenp.prettier-vscode",
+        "bytecodealliance.wit-idl",
+        "rust-lang.rust-analyzer"
+      ]
+    }
+  }
+}
