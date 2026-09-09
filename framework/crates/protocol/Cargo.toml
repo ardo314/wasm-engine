@@ -1,0 +1,25 @@
+[package]
+name = "wasm-protocol"
+description = "Wire protocol for invoking WIT interfaces across process boundaries"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+rmp-serde.workspace = true
+rmpv.workspace = true
+semver.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+wasmtime = { workspace = true, features = [
+    "component-model",
+    "runtime",
+    "std",
+], optional = true }
+
+[features]
+default = []
+# Bridges wasmtime's `Val`/`Type` to the wire format. Host-side only; native
+# service SDKs deliberately do not pull in wasmtime.
+val-codec = ["dep:wasmtime"]
