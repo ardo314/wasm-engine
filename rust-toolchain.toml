@@ -1,0 +1,5 @@
+[toolchain]
+# wasmtime 48 requires >= 1.95; wasm32-wasip1 is the cargo-component target.
+channel = "1.98"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-wasip1"]
