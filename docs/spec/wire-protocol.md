@@ -164,10 +164,57 @@ an envelope `err` into a guest call raises a trap.
 The registry advertises a digest per interface so a caller can detect that a
 provider was built against an incompatible definition of the same version.
 
-The digest is `sha256` over a canonical rendering of the interface: for each
-function in declaration order, the function name, then each parameter's type,
-then each result type, using a fully expanded structural form with field and
-case names included. Type aliases are resolved; documentation comments,
-whitespace, and the order of independent type declarations do not contribute.
+The digest is the lowercase hex `sha256` of a canonical rendering of the
+interface. The rendering is exactly:
 
-Two interfaces with equal digests are wire-compatible under this protocol.
+```
+interface := function*                  functions sorted by name, no separator
+function  := name params "->" params ";"
+params    := "(" [ type { "," type } ] ")"
+
+type      := "bool" | "s8" | "u8" | "s16" | "u16" | "s32" | "u32"
+           | "s64" | "u64" | "f32" | "f64" | "char" | "string"
+           | "list<" type ">"
+           | "list<" type "," length ">"
+           | "tuple(" [ type { "," type } ] ")"
+           | "record{" [ field { "," field } ] "}"
+           | "variant{" [ case { "," case } ] "}"
+           | "enum{" [ name { "," name } ] "}"
+           | "flags{" [ name { "," name } ] "}"
+           | "option<" type ">"
+           | "result<" arm "," arm ">"
+
+field     := name ":" type
+case      := name [ "(" type ")" ]
+arm       := type | "_"
+```
+
+For example, `add: func(lhs: vector3d, rhs: vector3d) -> vector3d` where
+`vector3d` is `tuple<f32, f32, f32>` renders as:
+
+```
+add(tuple(f32,f32,f32),tuple(f32,f32,f32))->(tuple(f32,f32,f32));
+```
+
+What does and does not contribute:
+
+- **Functions are sorted by name**, so reordering them in the WIT source cannot
+  raise a false conflict. They are addressed individually by subject, so their
+  order carries no meaning.
+- **Parameter names are excluded.** Arguments travel positionally, so renaming a
+  parameter cannot break a peer.
+- **Field, case, enum and flag names are included, in declaration order.**
+  Reordering record fields is in fact wire-compatible, since records decode by
+  name — but it changes the encoded bytes, because §4 emits fields in
+  declaration order. Including order means equal digests promise *identical
+  encodings*, which is a stronger and more useful guarantee than mere mutual
+  decodability.
+- **Type aliases are resolved.** The rendering is fully structural, so
+  `vector3d` and a bare `tuple<f32, f32, f32>` are indistinguishable, as they
+  are on the wire.
+- Documentation comments, whitespace, and the order of independent type
+  declarations do not contribute.
+
+Two interfaces with equal digests encode identically under this protocol.
+Unequal digests mean the two definitions disagree; they do not necessarily mean
+the two are unable to talk to each other.

@@ -67,6 +67,15 @@ jobs:
       - name: Build
         run: cargo component build -p math --release
 
+      # wit-parser already validates these in the test suite; wasm-tools is the
+      # implementation cargo-component itself uses, so it is the one that counts.
+      - name: WIT packages resolve
+        run: |
+          for package in wit/*/; do
+            echo "== $package"
+            wasm-tools component wit "$package" > /dev/null
+          done
+
       # Guards against the component's WIT drifting from wit/math.
       - name: Component exports match the WIT package
         run: |
