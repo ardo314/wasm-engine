@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same ref makes the in-flight run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: format, lint, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs the toolchain, components and targets pinned by rust-toolchain.toml.
+      - name: Install toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Test protocol with the wasmtime bridge
+        run: cargo test -p wasm-protocol --features val-codec
+
+      # The val-codec feature exists so native service SDKs never link a wasm
+      # runtime. Without this check that guarantee erodes silently.
+      - name: wasm-protocol must not link wasmtime by default
+        run: |
+          if cargo tree -p wasm-protocol --edges normal --prefix none | grep -qi '^wasmtime'; then
+            echo "::error file=framework/crates/protocol/Cargo.toml::wasmtime reachable from wasm-protocol with default features"
+            exit 1
+          fi
+
+  component:
+    name: build wasm component
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Prebuilt binaries; building cargo-component from source costs minutes.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-component,wasm-tools
+
+      - name: Build
+        run: cargo component build -p math --release
+
+      # Guards against the component's WIT drifting from wit/math.
+      - name: Component exports match the WIT package
+        run: |
+          wasm=$(find target -name math.wasm -path '*release*' | head -n 1)
+          test -n "$wasm" || { echo "::error::no math.wasm produced"; exit 1; }
+          wasm-tools component wit "$wasm"
