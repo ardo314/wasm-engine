@@ -326,9 +326,9 @@ pub fn msgpack_to_val(value: &Value, ty: &WitType) -> Result<Val, CodecError> {
 
         WitType::Result { ok, err } => {
             let (key, payload) = single_entry(value, mismatch)?;
-            let (ty, wrap): (&Option<Box<WitType>>, fn(Option<Box<Val>>) -> Val) = match key {
-                "ok" => (ok, |v| Val::Result(Ok(v))),
-                "err" => (err, |v| Val::Result(Err(v))),
+            let is_ok = match key {
+                "ok" => true,
+                "err" => false,
                 other => {
                     return Err(CodecError::UnknownCase {
                         kind: "result",
@@ -336,11 +336,11 @@ pub fn msgpack_to_val(value: &Value, ty: &WitType) -> Result<Val, CodecError> {
                     });
                 }
             };
-            let decoded = match ty {
+            let decoded = match if is_ok { ok } else { err } {
                 Some(ty) => Some(Box::new(msgpack_to_val(payload, ty)?)),
                 None => None,
             };
-            wrap(decoded)
+            Val::Result(if is_ok { Ok(decoded) } else { Err(decoded) })
         }
     })
 }
@@ -444,21 +444,18 @@ fn find_case<'a>(cases: &'a [Case], name: &str) -> Result<&'a Case, CodecError> 
         })
 }
 
-fn as_str<'a>(value: &'a Value, mismatch: impl Fn() -> CodecError) -> Result<&'a str, CodecError> {
+fn as_str(value: &Value, mismatch: impl Fn() -> CodecError) -> Result<&str, CodecError> {
     value.as_str().ok_or_else(mismatch)
 }
 
-fn as_array<'a>(
-    value: &'a Value,
-    mismatch: impl Fn() -> CodecError,
-) -> Result<&'a [Value], CodecError> {
+fn as_array(value: &Value, mismatch: impl Fn() -> CodecError) -> Result<&[Value], CodecError> {
     value.as_array().map(Vec::as_slice).ok_or_else(mismatch)
 }
 
-fn as_map<'a>(
-    value: &'a Value,
+fn as_map(
+    value: &Value,
     mismatch: impl Fn() -> CodecError,
-) -> Result<&'a [(Value, Value)], CodecError> {
+) -> Result<&[(Value, Value)], CodecError> {
     match value {
         Value::Map(entries) => Ok(entries),
         _ => Err(mismatch()),
@@ -473,10 +470,10 @@ fn lookup<'a>(entries: &'a [(Value, Value)], key: &str) -> Option<&'a Value> {
 }
 
 /// Reads the single `{name: payload}` entry used by `variant` and `result`.
-fn single_entry<'a>(
-    value: &'a Value,
+fn single_entry(
+    value: &Value,
     mismatch: impl Fn() -> CodecError,
-) -> Result<(&'a str, &'a Value), CodecError> {
+) -> Result<(&str, &Value), CodecError> {
     let entries = as_map(value, &mismatch)?;
     let [(key, payload)] = entries else {
         return Err(CodecError::ArityMismatch {
