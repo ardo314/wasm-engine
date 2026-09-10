@@ -10,6 +10,7 @@
 mod envelope;
 mod error;
 mod iface;
+mod shape;
 mod subject;
 mod ty;
 
@@ -19,6 +20,7 @@ mod val;
 pub use envelope::{ENVELOPE_VERSION, Reply, Request};
 pub use error::{CodecError, ErrorCode, ProtocolError, WireError};
 pub use iface::InterfaceId;
+pub use shape::{FunctionShape, InterfaceShape};
 pub use subject::Subject;
 pub use ty::{Case, Field, WitType};
 

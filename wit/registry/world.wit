@@ -1,0 +1,113 @@
+package ardo314:registry@0.1.0;
+
+interface types {
+    /// Whether a provider can be loaded into a host, or only reached remotely.
+    ///
+    /// This is the single fact that decides how a host may link an interface:
+    /// a `component` can be pulled in-process, a `service` never can.
+    enum provider-kind {
+        /// A wasm component. The host may fetch and instantiate it locally.
+        component,
+        /// An ordinary process implementing the interface. Reachable only over
+        /// the wire, but in exchange it has full access to its environment.
+        service,
+    }
+
+    /// A fetchable wasm component binary.
+    record artifact-ref {
+        /// OCI reference or URL.
+        uri: string,
+        /// Lowercase hex sha256 of the binary. Hosts must verify before use.
+        sha256: string,
+    }
+
+    /// How to reach a provider.
+    ///
+    /// A `component` provider carries `artifact`, a `service` provider carries
+    /// `nats`. A component that is also serving its exports over the wire
+    /// registers twice, once under each kind.
+    variant endpoint {
+        /// Subject prefix the provider answers on, per the wire protocol.
+        nats(string),
+        artifact(artifact-ref),
+    }
+
+    /// One interface a provider claims to implement.
+    record interface-ref {
+        /// Fully qualified and unversioned, e.g. `ardo314:math/vector3d`.
+        name: string,
+        /// Exact semver. Resolution matches a requirement against this.
+        version: string,
+        /// Lowercase hex sha256 over the canonical rendering of the interface,
+        /// per `docs/spec/wire-protocol.md` section 6. Two providers of the
+        /// same name and version whose digests differ were built against
+        /// incompatible definitions.
+        shape-digest: string,
+    }
+
+    record provider {
+        /// Unique within the cluster and stable across restarts of the same
+        /// deployment, so a restart replaces its entry rather than duplicating it.
+        id: string,
+        kind: provider-kind,
+        interfaces: list<interface-ref>,
+        endpoint: endpoint,
+        /// Seconds the registration survives without a heartbeat. The registry
+        /// may clamp this to its own bounds.
+        ttl-secs: u32,
+    }
+
+    variant registry-error {
+        /// A provider already claims this interface and version with a
+        /// different shape digest.
+        conflict(string),
+        /// No such provider id, or the registration already expired.
+        not-found,
+        /// Malformed input, such as an unparseable version requirement.
+        invalid(string),
+        /// The registry itself could not service the request.
+        unavailable(string),
+    }
+}
+
+/// Written by providers announcing themselves.
+interface registration {
+    use types.{provider, registry-error};
+
+    /// Announce a provider, or replace an existing registration with the same id.
+    ///
+    /// Starts the TTL clock; the caller must heartbeat to stay registered.
+    register: func(provider: provider) -> result<_, registry-error>;
+
+    /// Withdraw a provider immediately rather than waiting for its TTL to lapse.
+    deregister: func(id: string) -> result<_, registry-error>;
+
+    /// Extend a registration by its TTL.
+    ///
+    /// Returns `not-found` if the registration already expired, which the
+    /// caller should treat as an instruction to `register` again.
+    heartbeat: func(id: string) -> result<_, registry-error>;
+}
+
+/// Read by hosts resolving imports. Separated from `registration` so a consumer
+/// need not import the ability to mutate the registry.
+interface discovery {
+    use types.{provider, interface-ref, registry-error};
+
+    /// Providers implementing `name` at a version satisfying `version-req`.
+    ///
+    /// `name` is unversioned, `version-req` is a semver requirement such as
+    /// `^0.0.3`. The result is ordered but carries no preference: choosing
+    /// between a component and a service is the host's decision, not the
+    /// registry's.
+    resolve: func(name: string, version-req: string) -> result<list<provider>, registry-error>;
+
+    /// Every interface currently claimed by at least one live provider.
+    list-interfaces: func() -> result<list<interface-ref>, registry-error>;
+}
+
+world registry {
+    export types;
+    export registration;
+    export discovery;
+}

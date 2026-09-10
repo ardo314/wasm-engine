@@ -768,8 +768,10 @@ dependencies = [
  "rmpv",
  "semver",
  "serde",
+ "sha2",
  "thiserror",
  "wasmtime",
+ "wit-parser",
 ]
 
 [[package]]
