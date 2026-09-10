@@ -8,7 +8,7 @@
 use rmpv::Value;
 use wasmtime::component::{Type, Val};
 
-use crate::{CodecError, Case, Field, WitType};
+use crate::{Case, CodecError, Field, WitType};
 
 /// Encodes positional arguments or results.
 pub fn vals_to_msgpack(vals: &[Val], types: &[WitType]) -> Result<Vec<Value>, CodecError> {
@@ -368,10 +368,9 @@ impl WitType {
 
             Type::List(list) => Self::List(Box::new(Self::from_component_type(&list.ty())?)),
 
-            Type::FixedLengthList(list) => Self::FixedList(
-                Box::new(Self::from_component_type(&list.ty())?),
-                list.len(),
-            ),
+            Type::FixedLengthList(list) => {
+                Self::FixedList(Box::new(Self::from_component_type(&list.ty())?), list.len())
+            }
 
             Type::Tuple(tuple) => Self::Tuple(
                 tuple
@@ -384,7 +383,10 @@ impl WitType {
                 record
                     .fields()
                     .map(|field| {
-                        Ok(Field::new(field.name, Self::from_component_type(&field.ty)?))
+                        Ok(Field::new(
+                            field.name,
+                            Self::from_component_type(&field.ty)?,
+                        ))
                     })
                     .collect::<Result<_, CodecError>>()?,
             ),
@@ -442,10 +444,7 @@ fn find_case<'a>(cases: &'a [Case], name: &str) -> Result<&'a Case, CodecError> 
         })
 }
 
-fn as_str<'a>(
-    value: &'a Value,
-    mismatch: impl Fn() -> CodecError,
-) -> Result<&'a str, CodecError> {
+fn as_str<'a>(value: &'a Value, mismatch: impl Fn() -> CodecError) -> Result<&'a str, CodecError> {
     value.as_str().ok_or_else(mismatch)
 }
 
@@ -489,21 +488,17 @@ fn single_entry<'a>(
 }
 
 fn as_i64(value: &Value, ty: &'static str) -> Result<i64, CodecError> {
-    value
-        .as_i64()
-        .ok_or_else(|| CodecError::TypeMismatch {
-            expected: ty,
-            found: describe_value(value),
-        })
+    value.as_i64().ok_or_else(|| CodecError::TypeMismatch {
+        expected: ty,
+        found: describe_value(value),
+    })
 }
 
 fn as_u64(value: &Value, ty: &'static str) -> Result<u64, CodecError> {
-    value
-        .as_u64()
-        .ok_or_else(|| CodecError::TypeMismatch {
-            expected: ty,
-            found: describe_value(value),
-        })
+    value.as_u64().ok_or_else(|| CodecError::TypeMismatch {
+        expected: ty,
+        found: describe_value(value),
+    })
 }
 
 fn narrow_signed<T>(value: &Value, ty: &'static str) -> Result<T, CodecError>
@@ -714,10 +709,7 @@ mod tests {
         let none = round_trip(Val::Option(None), &ty);
         assert_eq!(none, Value::Array(vec![]));
 
-        let some = round_trip(
-            Val::Option(Some(Box::new(Val::String("hi".into())))),
-            &ty,
-        );
+        let some = round_trip(Val::Option(Some(Box::new(Val::String("hi".into())))), &ty);
         assert_eq!(some, Value::Array(vec![Value::from("hi")]));
     }
 
@@ -839,11 +831,10 @@ mod tests {
     #[test]
     fn unknown_record_keys_are_ignored() {
         let extra = Value::Map(vec![
-            (Value::from("normal"), Value::Array(vec![
-                Value::F32(0.0),
-                Value::F32(1.0),
-                Value::F32(0.0),
-            ])),
+            (
+                Value::from("normal"),
+                Value::Array(vec![Value::F32(0.0), Value::F32(1.0), Value::F32(0.0)]),
+            ),
             (Value::from("d"), Value::F32(-4.0)),
             (Value::from("added-later"), Value::from(true)),
         ]);
@@ -882,4 +873,3 @@ mod tests {
         ));
     }
 }
-

@@ -51,8 +51,9 @@ impl FromStr for InterfaceId {
     type Err = ProtocolError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let malformed =
-            |why: &'static str| -> ProtocolError { ProtocolError::MalformedInterfaceId(s.to_owned(), why) };
+        let malformed = |why: &'static str| -> ProtocolError {
+            ProtocolError::MalformedInterfaceId(s.to_owned(), why)
+        };
 
         let (package_part, rest) = s.split_once('/').ok_or_else(|| malformed("expected `/`"))?;
         let (namespace, package) = package_part
@@ -63,7 +64,9 @@ impl FromStr for InterfaceId {
             .ok_or_else(|| malformed("expected `@` and a version"))?;
 
         if namespace.is_empty() || package.is_empty() || interface.is_empty() {
-            return Err(malformed("namespace, package and interface must be non-empty"));
+            return Err(malformed(
+                "namespace, package and interface must be non-empty",
+            ));
         }
 
         let version = semver::Version::parse(version)
@@ -113,7 +116,10 @@ mod tests {
             ":math/vector3d@0.0.3",
             "ardo314:math/vector3d@not-a-version",
         ] {
-            assert!(bad.parse::<InterfaceId>().is_err(), "expected `{bad}` to fail");
+            assert!(
+                bad.parse::<InterfaceId>().is_err(),
+                "expected `{bad}` to fail"
+            );
         }
     }
 }

@@ -67,8 +67,9 @@ impl FromStr for Subject {
     type Err = ProtocolError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let malformed =
-            |why: &'static str| -> ProtocolError { ProtocolError::MalformedSubject(s.to_owned(), why) };
+        let malformed = |why: &'static str| -> ProtocolError {
+            ProtocolError::MalformedSubject(s.to_owned(), why)
+        };
 
         let parts: Vec<&str> = s.split('.').collect();
         let [prefix, namespace, package, version, interface, function] = parts.as_slice() else {
@@ -109,7 +110,10 @@ mod tests {
     #[test]
     fn builds_the_documented_subject() {
         let subject = Subject::new(iface("ardo314:math/vector3d@0.0.3"), "add-f32");
-        assert_eq!(subject.to_string(), "wit.ardo314.math.0_0_3.vector3d.add-f32");
+        assert_eq!(
+            subject.to_string(),
+            "wit.ardo314.math.0_0_3.vector3d.add-f32"
+        );
     }
 
     #[test]
