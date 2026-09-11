@@ -38,6 +38,7 @@ gate, not a mechanical one — the settings do not enforce it for you.
 wit/                       WIT packages — the source of truth for interfaces
 framework/crates/          the framework itself
   protocol/                wire format: subjects, envelope, Val <-> msgpack
+  registry/                registryd: providers in a JetStream KV bucket
 examples/                  reference components and services
 docs/spec/                 normative protocol specifications
 ```
@@ -52,6 +53,10 @@ cargo clippy --workspace --all-targets
 cargo component build -p math --release             # wasm components (devcontainer)
 docker compose up -d nats                           # dependency for integration tests
 ```
+
+Integration tests skip themselves when no NATS answers on `$NATS_URL`
+(`nats://127.0.0.1:4222` by default), so bring the compose service up before
+trusting a green `cargo test --workspace`.
 
 `cargo-component` is not installed on every machine; it is present in the
 devcontainer defined by `.devcontainer/Dockerfile`.
