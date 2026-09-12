@@ -1,0 +1,25 @@
+[package]
+name = "wasm-registry"
+description = "Serves the ardo314:registry interface over NATS, backed by a JetStream KV bucket"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "registryd"
+path = "src/bin/registryd.rs"
+
+[dependencies]
+wasm-protocol.workspace = true
+
+anyhow.workspace = true
+async-nats.workspace = true
+clap.workspace = true
+futures.workspace = true
+rmpv.workspace = true
+semver.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

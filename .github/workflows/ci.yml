@@ -33,6 +33,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+      # The registry integration tests skip themselves when nothing answers, so
+      # CI has to guarantee something does. `--wait` fails the step if the
+      # container never reports healthy, which keeps the skip from being silent.
+      - name: Start NATS
+        run: docker compose up -d --wait nats
+
       - name: Test
         run: cargo test --workspace
 
