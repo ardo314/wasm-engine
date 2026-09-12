@@ -2,6 +2,7 @@
 members = [
     "examples/math",
     "framework/crates/host",
+    "framework/crates/nats-link",
     "framework/crates/protocol",
     "framework/crates/registry",
 ]
@@ -14,6 +15,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 wasm-host = { path = "framework/crates/host" }
+wasm-nats-link = { path = "framework/crates/nats-link" }
 wasm-protocol = { path = "framework/crates/protocol" }
 wasm-registry = { path = "framework/crates/registry" }
 

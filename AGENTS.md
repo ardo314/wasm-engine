@@ -39,6 +39,7 @@ wit/                       WIT packages — the source of truth for interfaces
 framework/crates/          the framework itself
   host/                    scanning what a component imports, and deciding
                            how each import gets satisfied
+  nats-link/               satisfying an import by calling a service over NATS
   protocol/                wire format: subjects, envelope, Val <-> msgpack
   registry/                registryd: providers in a JetStream KV bucket, and
                            the client hosts and services reach it with
