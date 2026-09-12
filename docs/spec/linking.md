@@ -87,3 +87,13 @@ never sees an unsatisfied import.
 Under `Missing::Trap` the host calls `Linker::define_unknown_imports_as_traps`,
 which stubs every remaining import with a function that traps when called. The
 component loads and everything it can do without that import still works.
+
+## 5. Remote imports
+
+An import the resolver bound to a service is satisfied by `wasm-nats-link`,
+which defines each of the interface's functions as a NATS request/reply. The
+shape the *importing* component was built against is what calls are encoded
+with, so it travels on the binding rather than being re-derived.
+
+A host with no proxy refuses such a binding outright rather than loading a
+component whose import would fail at the first call.

@@ -18,7 +18,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use sha2::{Digest, Sha256};
-use wasm_protocol::InterfaceId;
+use wasm_protocol::{InterfaceId, InterfaceShape};
 use wasm_registry::{ArtifactRef, Endpoint, ProviderKind, RegistryError, Resolution};
 use wasmtime::Engine;
 use wasmtime::component::Component;
@@ -138,6 +138,7 @@ impl<D: Discovery + Sync, F: Fetch + Sync> Resolver<D, F> {
             for used in scan.imports() {
                 imports.push(Binding {
                     interface: used.id.clone(),
+                    shape: used.shape().cloned(),
                     source: self.source_for(used, ctx).await?,
                 });
             }
@@ -315,6 +316,9 @@ pub struct Node {
 #[derive(Debug, Clone)]
 pub struct Binding {
     pub interface: InterfaceId,
+    /// What calls are encoded against. `None` for an in-process-only
+    /// interface, which by definition is never bound to [`Source::Nats`].
+    pub shape: Option<InterfaceShape>,
     pub source: Source,
 }
 
