@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "examples/math",
+    "framework/crates/host",
     "framework/crates/protocol",
     "framework/crates/registry",
 ]
@@ -12,10 +13,12 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+wasm-host = { path = "framework/crates/host" }
 wasm-protocol = { path = "framework/crates/protocol" }
 wasm-registry = { path = "framework/crates/registry" }
 
 wasmtime = { version = "48.0.1", default-features = false }
+wit-component = { version = "0.254.0", default-features = false }
 wit-parser = "0.254.0"
 
 anyhow = "1.0.104"
