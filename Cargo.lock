@@ -2069,6 +2069,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-nats-link"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "futures",
+ "rmpv",
+ "thiserror",
+ "tokio",
+ "wasm-protocol",
+ "wasmtime",
+]
+
+[[package]]
 name = "wasm-protocol"
 version = "0.1.0"
 dependencies = [
@@ -2118,6 +2131,7 @@ checksum = "0f7c12eac7bb587801590f6a67ff0bc84d0748513864b71108e4b311cc3df694"
 dependencies = [
  "bitflags",
  "indexmap",
+ "semver",
 ]
 
 [[package]]
@@ -2169,6 +2183,7 @@ dependencies = [
  "wasmtime-internal-jit-icache-coherence",
  "wasmtime-internal-unwinder",
  "wasmtime-internal-versioned-export-macros",
+ "wat",
  "windows-sys 0.61.2",
 ]
 

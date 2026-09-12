@@ -1,0 +1,24 @@
+[package]
+name = "wasm-nats-link"
+description = "Satisfies a component's import by turning each call into a NATS request/reply"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+wasm-protocol = { workspace = true, features = ["val-codec"] }
+
+async-nats.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+wasmtime = { workspace = true, features = [
+    "async",
+    "component-model",
+    "runtime",
+    "std",
+] }
+
+[dev-dependencies]
+futures.workspace = true
+rmpv.workspace = true
+wasmtime = { workspace = true, features = ["cranelift", "wat"] }
