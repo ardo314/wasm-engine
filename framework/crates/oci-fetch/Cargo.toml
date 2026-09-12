@@ -1,0 +1,25 @@
+[package]
+name = "wasm-oci-fetch"
+description = "Fetches component artifacts from an OCI registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+wasm-host.workspace = true
+wasm-registry.workspace = true
+
+oci-client.workspace = true
+oci-wasm.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true
+tokio.workspace = true
+wasm-protocol.workspace = true
+wasmtime = { workspace = true, features = [
+    "component-model",
+    "cranelift",
+    "runtime",
+    "wat",
+] }
+wat = "1.259.0"

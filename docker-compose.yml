@@ -17,5 +17,16 @@ services:
       timeout: 3s
       retries: 10
 
+  # Somewhere to push component artifacts for the oci-fetch tests.
+  registry:
+    image: registry:3
+    ports:
+      - "5000:5000" # OCI distribution
+    healthcheck:
+      test: ["CMD", "/bin/registry", "--version"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   nats-data:
