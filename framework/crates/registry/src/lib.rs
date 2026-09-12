@@ -4,11 +4,13 @@
 //! `docs/spec/registry.md` is normative for the behaviour the WIT types cannot
 //! express — lifecycle, staleness and shape conflicts.
 
+mod client;
 mod server;
 mod store;
 mod types;
 mod wire;
 
+pub use client::{Client, Registration, Resolution};
 pub use server::serve;
 pub use store::{Limits, Registry};
 pub use types::{ArtifactRef, Endpoint, InterfaceRef, Provider, ProviderKind, RegistryError};

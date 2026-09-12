@@ -1,6 +1,6 @@
 [package]
 name = "wasm-registry"
-description = "Serves the ardo314:registry interface over NATS, backed by a JetStream KV bucket"
+description = "The ardo314:registry interface over NATS: registryd, and the client hosts and services call it with"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

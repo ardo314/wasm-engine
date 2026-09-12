@@ -22,6 +22,18 @@ pub(crate) fn variant(case: &str, payload: Value) -> Value {
     Value::Map(vec![(Value::from(case), payload)])
 }
 
+/// Splits a WIT `result<T, registry-error>` into the arm it carries.
+pub(crate) fn result(value: &Value) -> Result<Value> {
+    let (case, payload) = case(value, "result")?;
+    match case.as_str() {
+        "ok" => Ok(payload.clone()),
+        "err" => Err(RegistryError::from_value(payload)?),
+        other => Err(RegistryError::invalid(format!(
+            "`{other}` is not a result case"
+        ))),
+    }
+}
+
 pub(crate) fn encode(value: &Value) -> Vec<u8> {
     let mut bytes = Vec::new();
     rmpv::encode::write_value(&mut bytes, value).expect("writing to a Vec cannot fail");
@@ -186,7 +198,7 @@ fn map<'a>(value: &'a Value, what: &str) -> Result<&'a [(Value, Value)]> {
         .ok_or_else(|| RegistryError::invalid(format!("{what} must be a map")))
 }
 
-fn array<'a>(value: &'a Value, what: &str) -> Result<&'a [Value]> {
+pub(crate) fn array<'a>(value: &'a Value, what: &str) -> Result<&'a [Value]> {
     value
         .as_array()
         .map(Vec::as_slice)
