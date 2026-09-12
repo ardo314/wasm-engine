@@ -2046,9 +2046,13 @@ dependencies = [
 name = "wasm-host"
 version = "0.1.0"
 dependencies = [
+ "async-nats",
+ "futures",
+ "rmpv",
  "sha2",
  "thiserror",
  "tokio",
+ "wasm-nats-link",
  "wasm-protocol",
  "wasm-registry",
  "wasmtime",

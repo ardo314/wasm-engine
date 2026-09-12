@@ -8,6 +8,7 @@
 // As in `resolve`: naming an `InterfaceId` alone exceeds the lint's threshold.
 #![allow(clippy::result_large_err)]
 
+use wasm_nats_link::Proxy;
 use wasm_protocol::InterfaceId;
 use wasmtime::component::types::ComponentItem;
 use wasmtime::component::{Component, Func, Instance, Linker, Val};
@@ -20,6 +21,7 @@ pub struct Host {
     engine: Engine,
     store: Store<()>,
     loaded: Vec<Loaded>,
+    remote: Option<Proxy>,
 }
 
 struct Loaded {
@@ -34,7 +36,15 @@ impl Host {
             engine,
             store,
             loaded: Vec::new(),
+            remote: None,
         }
+    }
+
+    /// Lets this host satisfy imports over NATS. Without one, a plan that
+    /// resolved to a service is refused.
+    pub fn with_remote(mut self, proxy: Proxy) -> Self {
+        self.remote = Some(proxy);
+        self
     }
 
     pub fn engine(&self) -> &Engine {
@@ -75,7 +85,16 @@ impl Host {
                     }
                     Source::Trap => needs_stubs = true,
                     Source::Nats(service) => {
-                        return Err(LinkError::NoRemoteTransport(service.interface.clone()));
+                        let proxy = self.remote.as_ref().ok_or_else(|| {
+                            LinkError::NoRemoteTransport(binding.interface.clone())
+                        })?;
+                        let shape = binding
+                            .shape
+                            .as_ref()
+                            .ok_or_else(|| LinkError::NotEncodable(binding.interface.clone()))?;
+                        proxy
+                            .define(&mut linker, &service.interface, shape)
+                            .map_err(|e| LinkError::Wasmtime(e.into()))?;
                     }
                 }
             }
@@ -155,8 +174,11 @@ pub enum LinkError {
         function: String,
     },
 
-    #[error("`{0}` has to be called over NATS, which this host cannot do yet")]
+    #[error("`{0}` resolved to a service, but this host has no NATS proxy")]
     NoRemoteTransport(InterfaceId),
+
+    #[error("`{0}` has no wire shape, so it cannot be called over NATS")]
+    NotEncodable(InterfaceId),
 
     #[error("{0:#}")]
     Wasmtime(wasmtime::Error),

@@ -11,6 +11,7 @@ pub use resolve::{
     Resolver, Service, ShapeMismatch, Source,
 };
 pub use scan::{ComponentScan, InterfaceUse, Linkage, ScanError};
+pub use wasm_nats_link::Proxy;
 
 use wasmtime::{Config, Engine};
 
