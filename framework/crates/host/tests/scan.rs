@@ -2,35 +2,19 @@
 //! against build artefacts, so it does not depend on `cargo component` having
 //! run.
 
+mod support;
+
 use wasm_host::{ComponentScan, Linkage, engine};
 use wasmtime::component::Component;
-use wit_component::{ComponentEncoder, StringEncoding};
-use wit_parser::{ManglingAndAbi, Resolve, WorldId};
+use wit_parser::{Resolve, WorldId};
 
-/// A real component with the given world's types, implemented by stubs.
 fn component(resolve: &Resolve, world: WorldId) -> Component {
-    let mut module = wit_component::dummy_module(resolve, world, ManglingAndAbi::Standard32);
-    wit_component::embed_component_metadata(&mut module, resolve, world, StringEncoding::UTF8)
-        .expect("metadata embeds");
-    let bytes = ComponentEncoder::default()
-        .module(&module)
-        .expect("module is accepted")
-        .validate(true)
-        .encode()
-        .expect("component encodes");
-
-    Component::new(&engine().expect("engine"), &bytes).expect("component compiles")
+    Component::new(&engine().expect("engine"), support::encode(resolve, world))
+        .expect("component compiles")
 }
 
 fn from_source(wit: &str, world: &str) -> Component {
-    let mut resolve = Resolve::default();
-    let package = resolve
-        .push_str("fixture.wit", wit)
-        .expect("fixture resolves");
-    let world = resolve
-        .select_world(&[package], Some(world))
-        .expect("world");
-    component(&resolve, world)
+    support::component_of(&engine().expect("engine"), wit, world)
 }
 
 #[test]

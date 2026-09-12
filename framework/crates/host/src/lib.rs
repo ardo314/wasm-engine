@@ -1,8 +1,13 @@
 //! Hosting side of the framework: loading components and working out what they
 //! need before deciding how to satisfy it.
 
+mod resolve;
 mod scan;
 
+pub use resolve::{
+    Binding, ComponentKey, Discovery, Fetch, FetchError, Missing, Node, Plan, ResolveError,
+    Resolver, Service, ShapeMismatch, Source,
+};
 pub use scan::{ComponentScan, InterfaceUse, Linkage, ScanError};
 
 use wasmtime::{Config, Engine};
