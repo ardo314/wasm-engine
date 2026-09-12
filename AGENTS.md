@@ -40,6 +40,7 @@ framework/crates/          the framework itself
   host/                    scanning what a component imports, and deciding
                            how each import gets satisfied
   nats-link/               satisfying an import by calling a service over NATS
+  oci-fetch/               pulling a component artifact from an OCI registry
   protocol/                wire format: subjects, envelope, Val <-> msgpack
   registry/                registryd: providers in a JetStream KV bucket, and
                            the client hosts and services reach it with
@@ -59,8 +60,9 @@ docker compose up -d nats                           # dependency for integration
 ```
 
 Integration tests skip themselves when no NATS answers on `$NATS_URL`
-(`nats://127.0.0.1:4222` by default), so bring the compose service up before
-trusting a green `cargo test --workspace`.
+(`nats://127.0.0.1:4222` by default) and when no OCI registry answers on
+`$OCI_REGISTRY` (`localhost:5000`), so bring `docker compose up -d nats
+registry` up before trusting a green `cargo test --workspace`.
 
 `cargo-component` is not installed on every machine; it is present in the
 devcontainer defined by `.devcontainer/Dockerfile`.
