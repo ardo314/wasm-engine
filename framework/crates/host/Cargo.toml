@@ -1,0 +1,22 @@
+[package]
+name = "wasm-host"
+description = "Runs WIT components: what each one imports, and how those imports can be satisfied"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+wasm-protocol = { workspace = true, features = ["val-codec"] }
+
+thiserror.workspace = true
+wasmtime = { workspace = true, features = [
+    "async",
+    "component-model",
+    "cranelift",
+    "runtime",
+    "std",
+] }
+
+[dev-dependencies]
+wit-component = { workspace = true, features = ["dummy-module"] }
+wit-parser.workspace = true
