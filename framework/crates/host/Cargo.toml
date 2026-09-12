@@ -7,7 +7,9 @@ license.workspace = true
 
 [dependencies]
 wasm-protocol = { workspace = true, features = ["val-codec"] }
+wasm-registry.workspace = true
 
+sha2.workspace = true
 thiserror.workspace = true
 wasmtime = { workspace = true, features = [
     "async",
@@ -18,5 +20,6 @@ wasmtime = { workspace = true, features = [
 ] }
 
 [dev-dependencies]
+tokio.workspace = true
 wit-component = { workspace = true, features = ["dummy-module"] }
 wit-parser.workspace = true
