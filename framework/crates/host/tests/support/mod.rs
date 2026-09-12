@@ -1,6 +1,9 @@
 //! Components synthesised from WIT, so the tests need nothing built by
 //! `cargo component`.
 
+// Each test binary compiles this module and uses only part of it.
+#![allow(dead_code)]
+
 use wasmtime::Engine;
 use wasmtime::component::Component;
 use wit_component::{ComponentEncoder, StringEncoding};

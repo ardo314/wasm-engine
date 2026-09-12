@@ -1,0 +1,338 @@
+//! Linking is exercised against hand-written component WAT, because a dummy
+//! module from WIT traps rather than computing anything, and the numbers are
+//! the point here.
+
+mod support;
+
+use wasm_host::{Fetch, FetchError, Host, LinkError, Missing, Resolver, engine};
+use wasm_protocol::InterfaceId;
+use wasmtime::component::{Component, Val};
+
+const ADDER: &str = "test:fixture/adder@1.0.0";
+
+/// Exports `adder`, adding two numbers for real.
+const PROVIDER: &str = r#"
+(component
+  (core module $m
+    (func (export "add") (param i32 i32) (result i32)
+      local.get 0
+      local.get 1
+      i32.add))
+  (core instance $i (instantiate $m))
+  (func $add (param "a" u32) (param "b" u32) (result u32)
+    (canon lift (core func $i "add")))
+  (instance $adder (export "add" (func $add)))
+  (export "test:fixture/adder@1.0.0" (instance $adder))
+)
+"#;
+
+/// Exports `adder` too, but traps instead of answering.
+const TRAPPING_PROVIDER: &str = r#"
+(component
+  (core module $m
+    (func (export "add") (param i32 i32) (result i32)
+      unreachable))
+  (core instance $i (instantiate $m))
+  (func $add (param "a" u32) (param "b" u32) (result u32)
+    (canon lift (core func $i "add")))
+  (instance $adder (export "add" (func $add)))
+  (export "test:fixture/adder@1.0.0" (instance $adder))
+)
+"#;
+
+/// Imports `adder` and exports `sum`, which is nothing but a forward.
+const CONSUMER: &str = r#"
+(component
+  (import "test:fixture/adder@1.0.0" (instance $adder
+    (export "add" (func (param "a" u32) (param "b" u32) (result u32)))))
+  (alias export $adder "add" (func $add))
+  (core func $add-lowered (canon lower (func $add)))
+  (core module $m
+    (import "adder" "add" (func $add (param i32 i32) (result i32)))
+    (func (export "sum") (param i32 i32) (result i32)
+      local.get 0
+      local.get 1
+      call $add))
+  (core instance $i (instantiate $m
+    (with "adder" (instance (export "add" (func $add-lowered))))))
+  (func $sum (param "a" u32) (param "b" u32) (result u32)
+    (canon lift (core func $i "sum")))
+  (instance $caller (export "sum" (func $sum)))
+  (export "test:fixture/caller@1.0.0" (instance $caller))
+)
+"#;
+
+const CALLER: &str = "test:fixture/caller@1.0.0";
+
+/// The resolver is not the subject here; these tests hand it a registry that
+/// knows nothing and rely on the live-component step.
+#[derive(Default)]
+struct NoRegistry;
+
+impl wasm_host::Discovery for NoRegistry {
+    async fn resolve(
+        &self,
+        _name: &str,
+        _version_req: &str,
+    ) -> Result<Vec<wasm_registry::Resolution>, wasm_registry::RegistryError> {
+        Ok(Vec::new())
+    }
+}
+
+#[derive(Default)]
+struct NoArtifacts;
+
+impl Fetch for NoArtifacts {
+    async fn fetch(&self, _artifact: &wasm_registry::ArtifactRef) -> Result<Vec<u8>, FetchError> {
+        Err(FetchError::new("no artifacts in this test"))
+    }
+}
+
+fn adder() -> InterfaceId {
+    ADDER.parse().unwrap()
+}
+
+fn caller() -> InterfaceId {
+    CALLER.parse().unwrap()
+}
+
+/// Loads `provider`, then loads `CONSUMER` against it, returning the host and
+/// the consumer's instance.
+async fn host_with(provider: &str) -> (Host, wasmtime::component::Instance) {
+    let engine = engine().expect("engine");
+    let mut host = Host::new(engine.clone());
+    let resolver = Resolver::new(engine.clone(), NoRegistry, NoArtifacts);
+
+    let provider = Component::new(&engine, provider).expect("provider compiles");
+    let plan = resolver.plan(&[], provider).await.expect("provider plan");
+    host.instantiate(plan).await.expect("provider instantiates");
+
+    let consumer = Component::new(&engine, CONSUMER).expect("consumer compiles");
+    let plan = resolver
+        .plan(&host.live(), consumer)
+        .await
+        .expect("consumer plan");
+    let instance = host.instantiate(plan).await.expect("consumer instantiates");
+
+    (host, instance)
+}
+
+#[tokio::test]
+async fn a_forwarded_call_returns_what_the_provider_computed() {
+    let (mut host, consumer) = host_with(PROVIDER).await;
+
+    let mut results = vec![Val::U32(0)];
+    host.call(
+        consumer,
+        &caller(),
+        "sum",
+        &[Val::U32(3), Val::U32(4)],
+        &mut results,
+    )
+    .await
+    .expect("sum");
+
+    assert_eq!(results, vec![Val::U32(7)]);
+}
+
+#[tokio::test]
+async fn forwarding_agrees_with_calling_the_provider_directly() {
+    let engine = engine().expect("engine");
+    let mut host = Host::new(engine.clone());
+    let resolver = Resolver::new(engine.clone(), NoRegistry, NoArtifacts);
+
+    let provider = Component::new(&engine, PROVIDER).expect("provider compiles");
+    let plan = resolver.plan(&[], provider).await.expect("provider plan");
+    let provider_instance = host.instantiate(plan).await.expect("provider instantiates");
+
+    let consumer = Component::new(&engine, CONSUMER).expect("consumer compiles");
+    let plan = resolver
+        .plan(&host.live(), consumer)
+        .await
+        .expect("consumer plan");
+    let consumer_instance = host.instantiate(plan).await.expect("consumer instantiates");
+
+    for (a, b) in [(0, 0), (1, 2), (40, 2), (u32::MAX - 1, 1)] {
+        let mut direct = vec![Val::U32(0)];
+        host.call(
+            provider_instance,
+            &adder(),
+            "add",
+            &[Val::U32(a), Val::U32(b)],
+            &mut direct,
+        )
+        .await
+        .expect("direct");
+
+        let mut forwarded = vec![Val::U32(0)];
+        host.call(
+            consumer_instance,
+            &caller(),
+            "sum",
+            &[Val::U32(a), Val::U32(b)],
+            &mut forwarded,
+        )
+        .await
+        .expect("forwarded");
+
+        assert_eq!(direct, forwarded, "{a} + {b}");
+    }
+}
+
+#[tokio::test]
+async fn a_trap_in_the_callee_surfaces_in_the_caller() {
+    let (mut host, consumer) = host_with(TRAPPING_PROVIDER).await;
+
+    let mut results = vec![Val::U32(0)];
+    let error = host
+        .call(
+            consumer,
+            &caller(),
+            "sum",
+            &[Val::U32(3), Val::U32(4)],
+            &mut results,
+        )
+        .await
+        .expect_err("the provider traps");
+    assert!(
+        error.to_string().contains("unreachable"),
+        "the caller should see the callee's own trap, got: {error}"
+    );
+}
+
+/// `docs/spec/linking.md` §3. Asserted so that a wasmtime release which fixes
+/// this is noticed here rather than in production.
+#[tokio::test]
+async fn a_trap_poisons_every_instance_in_the_store() {
+    let engine = engine().expect("engine");
+    let mut host = Host::new(engine.clone());
+    let resolver = Resolver::new(engine.clone(), NoRegistry, NoArtifacts);
+
+    let good = Component::new(&engine, PROVIDER).expect("provider compiles");
+    let plan = resolver.plan(&[], good).await.expect("plan");
+    let good = host.instantiate(plan).await.expect("instantiates");
+
+    let trapping = Component::new(&engine, TRAPPING_PROVIDER).expect("compiles");
+    let plan = resolver.plan(&[], trapping).await.expect("plan");
+    let trapping = host.instantiate(plan).await.expect("instantiates");
+
+    let mut results = vec![Val::U32(0)];
+    host.call(
+        good,
+        &adder(),
+        "add",
+        &[Val::U32(1), Val::U32(1)],
+        &mut results,
+    )
+    .await
+    .expect("the good instance works before the trap");
+    assert_eq!(results, vec![Val::U32(2)]);
+
+    let mut results = vec![Val::U32(0)];
+    host.call(
+        trapping,
+        &adder(),
+        "add",
+        &[Val::U32(1), Val::U32(1)],
+        &mut results,
+    )
+    .await
+    .expect_err("traps");
+
+    let mut results = vec![Val::U32(0)];
+    let error = host
+        .call(
+            good,
+            &adder(),
+            "add",
+            &[Val::U32(2), Val::U32(2)],
+            &mut results,
+        )
+        .await
+        .expect_err("an unrelated instance is collateral damage");
+    assert!(
+        error
+            .to_string()
+            .contains("cannot enter component instance"),
+        "{error}"
+    );
+}
+
+#[tokio::test]
+async fn an_unsatisfied_import_traps_only_when_called() {
+    let engine = engine().expect("engine");
+    let mut host = Host::new(engine.clone());
+
+    let consumer = Component::new(&engine, CONSUMER).expect("consumer compiles");
+    let plan = Resolver::new(engine.clone(), NoRegistry, NoArtifacts)
+        .on_missing(Missing::Trap)
+        .plan(&[], consumer)
+        .await
+        .expect("permissive plan");
+
+    let instance = host
+        .instantiate(plan)
+        .await
+        .expect("a component with no provider still loads");
+
+    let mut results = vec![Val::U32(0)];
+    host.call(
+        instance,
+        &caller(),
+        "sum",
+        &[Val::U32(1), Val::U32(1)],
+        &mut results,
+    )
+    .await
+    .expect_err("the stub traps");
+}
+
+#[tokio::test]
+async fn a_service_binding_is_refused_until_the_nats_proxy_exists() {
+    let engine = engine().expect("engine");
+    let mut host = Host::new(engine.clone());
+
+    let digest = {
+        let consumer = Component::new(&engine, CONSUMER).expect("consumer compiles");
+        wasm_host::ComponentScan::new(&engine, &consumer)
+            .expect("scan")
+            .import(&adder())
+            .expect("adder is imported")
+            .shape()
+            .expect("a wire shape")
+            .digest()
+    };
+
+    struct OnlyAService(String);
+    impl wasm_host::Discovery for OnlyAService {
+        async fn resolve(
+            &self,
+            _name: &str,
+            _version_req: &str,
+        ) -> Result<Vec<wasm_registry::Resolution>, wasm_registry::RegistryError> {
+            Ok(vec![wasm_registry::Resolution {
+                provider: wasm_registry::Provider {
+                    id: "remote".to_owned(),
+                    kind: wasm_registry::ProviderKind::Service,
+                    interfaces: vec![],
+                    endpoint: wasm_registry::Endpoint::Nats("wit.test".to_owned()),
+                    ttl_secs: 30,
+                },
+                interface: ADDER.parse().unwrap(),
+                shape_digest: self.0.clone(),
+            }])
+        }
+    }
+
+    let consumer = Component::new(&engine, CONSUMER).expect("consumer compiles");
+    let plan = Resolver::new(engine.clone(), OnlyAService(digest), NoArtifacts)
+        .plan(&[], consumer)
+        .await
+        .expect("the resolver is happy to pick a service");
+
+    let error = host
+        .instantiate(plan)
+        .await
+        .expect_err("but the host cannot call one yet");
+    assert!(matches!(error, LinkError::NoRemoteTransport(_)), "{error}");
+}
