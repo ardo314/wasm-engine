@@ -38,7 +38,8 @@ gate, not a mechanical one — the settings do not enforce it for you.
 wit/                       WIT packages — the source of truth for interfaces
 framework/crates/          the framework itself
   protocol/                wire format: subjects, envelope, Val <-> msgpack
-  registry/                registryd: providers in a JetStream KV bucket
+  registry/                registryd: providers in a JetStream KV bucket, and
+                           the client hosts and services reach it with
 examples/                  reference components and services
 docs/spec/                 normative protocol specifications
 ```

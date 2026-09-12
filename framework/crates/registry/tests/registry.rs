@@ -5,7 +5,7 @@
 //! `docker compose up -d nats`.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use async_nats::Client;
 use async_nats::jetstream::Context;
@@ -159,6 +159,35 @@ impl Harness {
                 .collect()
         })
     }
+
+    async fn registry_client(&self) -> wasm_registry::Client {
+        wasm_registry::Client::connect(self.client.clone(), &self.bucket)
+            .await
+            .unwrap()
+    }
+
+    /// A plain subscriber alongside registryd's queue group, so calls that
+    /// reach the wire can be counted.
+    async fn eavesdrop(&self, iface: &str) -> async_nats::Subscriber {
+        let interface: InterfaceId = iface.parse().unwrap();
+        let calls = self
+            .client
+            .subscribe(Subject::interface_wildcard(&interface))
+            .await
+            .unwrap();
+        self.client.flush().await.unwrap();
+        calls
+    }
+}
+
+/// Drains what the eavesdropper saw. Replies arrive after the server has
+/// routed the call, so anything counted here is already delivered.
+async fn calls_seen(calls: &mut async_nats::Subscriber) -> usize {
+    let mut seen = 0;
+    while let Ok(Some(_)) = tokio::time::timeout(Duration::from_millis(200), calls.next()).await {
+        seen += 1;
+    }
+    seen
 }
 
 /// Peels the WIT `result<T, registry-error>` out of the reply's single value.
@@ -435,6 +464,92 @@ async fn an_unserved_function_is_a_transport_error() {
         .await
         .expect_err("the registry has no `renew`");
     assert_eq!(error.code, ErrorCode::NotFound);
+
+    harness.stop().await;
+}
+
+#[tokio::test]
+async fn resolving_twice_hits_the_network_once() {
+    let Some(harness) = Harness::start(limits(5)).await else {
+        return;
+    };
+
+    harness
+        .register(&service("math-1", DIGEST_A))
+        .await
+        .unwrap();
+
+    let client = harness.registry_client().await;
+    let mut calls = harness.eavesdrop(DISCOVERY_INTERFACE).await;
+
+    let first = client.resolve(MATH, "^0.0.3").await.unwrap();
+    let second = client.resolve(MATH, "^0.0.3").await.unwrap();
+    assert_eq!(first, second);
+
+    // A requirement is not a version; the caller is handed the one to address.
+    assert_eq!(first.len(), 1);
+    assert_eq!(
+        first[0].interface.to_string(),
+        "ardo314:math/vector3d@0.0.3"
+    );
+
+    assert_eq!(calls_seen(&mut calls).await, 1);
+
+    harness.stop().await;
+}
+
+#[tokio::test]
+async fn a_deregistration_elsewhere_invalidates_the_cache() {
+    let Some(harness) = Harness::start(limits(5)).await else {
+        return;
+    };
+
+    harness
+        .register(&service("math-1", DIGEST_A))
+        .await
+        .unwrap();
+    harness
+        .register(&service("math-2", DIGEST_A))
+        .await
+        .unwrap();
+
+    let client = harness.registry_client().await;
+    assert_eq!(client.resolve(MATH, "^0.0.3").await.unwrap().len(), 2);
+
+    // Nobody tells the client: it learns from the bucket, without a restart.
+    harness.deregister("math-2").await.unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while client.resolve(MATH, "^0.0.3").await.unwrap().len() != 1 {
+        assert!(Instant::now() < deadline, "the cache was never invalidated");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    harness.stop().await;
+}
+
+#[tokio::test]
+async fn heartbeats_a_registration_in_the_background() {
+    let Some(harness) = Harness::start(limits(3)).await else {
+        return;
+    };
+
+    let client = harness.registry_client().await;
+    let registration = client
+        .register(Provider {
+            ttl_secs: 3,
+            ..service("math-1", DIGEST_A)
+        })
+        .await
+        .unwrap();
+    assert_eq!(registration.id(), "math-1");
+
+    // Past the TTL: only the background heartbeats keep the entry alive.
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    assert_eq!(harness.resolve(MATH, "^0.0.3").await.unwrap().len(), 1);
+
+    registration.deregister().await.unwrap();
+    assert_eq!(harness.resolve(MATH, "^0.0.3").await.unwrap(), vec![]);
 
     harness.stop().await;
 }
