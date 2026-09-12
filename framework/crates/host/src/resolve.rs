@@ -367,6 +367,11 @@ impl Plan {
     pub fn root_index(&self) -> usize {
         self.root
     }
+
+    /// Consumes the plan, still dependencies-first.
+    pub fn into_nodes(self) -> Vec<Node> {
+        self.nodes
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

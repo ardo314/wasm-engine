@@ -21,5 +21,6 @@ wasmtime = { workspace = true, features = [
 
 [dev-dependencies]
 tokio.workspace = true
+wasmtime = { workspace = true, features = ["wat"] }
 wit-component = { workspace = true, features = ["dummy-module"] }
 wit-parser.workspace = true
