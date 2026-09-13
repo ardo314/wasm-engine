@@ -5,7 +5,7 @@ mod link;
 mod resolve;
 mod scan;
 
-pub use link::{Host, LinkError};
+pub use link::{Host, LinkError, Running};
 pub use resolve::{
     Binding, ComponentKey, Discovery, Fetch, FetchError, Missing, Node, Plan, ResolveError,
     Resolver, Service, ShapeMismatch, Source,
