@@ -3055,6 +3055,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-nats-serve"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "futures",
+ "rmpv",
+ "thiserror",
+ "tokio",
+ "wasm-host",
+ "wasm-nats-link",
+ "wasm-protocol",
+ "wasm-registry",
+ "wasmtime",
+]
+
+[[package]]
 name = "wasm-oci-fetch"
 version = "0.1.0"
 dependencies = [

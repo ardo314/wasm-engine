@@ -40,6 +40,7 @@ framework/crates/          the framework itself
   host/                    scanning what a component imports, and deciding
                            how each import gets satisfied
   nats-link/               satisfying an import by calling a service over NATS
+  nats-serve/              serving a loaded component's exports over NATS
   oci-fetch/               pulling a component artifact from an OCI registry
   protocol/                wire format: subjects, envelope, Val <-> msgpack
   registry/                registryd: providers in a JetStream KV bucket, and

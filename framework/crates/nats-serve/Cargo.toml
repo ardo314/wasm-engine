@@ -1,0 +1,27 @@
+[package]
+name = "wasm-nats-serve"
+description = "Publishes a locally loaded component's exports to the cluster over NATS"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+wasm-host.workspace = true
+wasm-protocol = { workspace = true, features = ["val-codec"] }
+wasm-registry.workspace = true
+
+async-nats.workspace = true
+futures.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+wasmtime = { workspace = true, features = [
+    "async",
+    "component-model",
+    "runtime",
+    "std",
+] }
+
+[dev-dependencies]
+rmpv.workspace = true
+wasm-nats-link.workspace = true
+wasmtime = { workspace = true, features = ["cranelift", "wat"] }
