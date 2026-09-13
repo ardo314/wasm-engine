@@ -12,6 +12,7 @@ wasm-registry.workspace = true
 
 sha2.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
 wasmtime = { workspace = true, features = [
     "async",
     "component-model",

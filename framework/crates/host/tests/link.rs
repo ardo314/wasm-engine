@@ -57,7 +57,7 @@ fn caller() -> InterfaceId {
 
 /// Loads `provider`, then loads `CONSUMER` against it, returning the host and
 /// the consumer's instance.
-async fn host_with(provider: &str) -> (Host, wasmtime::component::Instance) {
+async fn host_with(provider: &str) -> (Host, wasm_host::Running) {
     let engine = engine().expect("engine");
     let mut host = Host::new(engine.clone());
     let resolver = Resolver::new(engine.clone(), NoRegistry, NoArtifacts);
@@ -78,7 +78,7 @@ async fn host_with(provider: &str) -> (Host, wasmtime::component::Instance) {
 
 #[tokio::test]
 async fn a_forwarded_call_returns_what_the_provider_computed() {
-    let (mut host, consumer) = host_with(PROVIDER).await;
+    let (host, consumer) = host_with(PROVIDER).await;
 
     let mut results = vec![Val::U32(0)];
     host.call(
@@ -140,7 +140,7 @@ async fn forwarding_agrees_with_calling_the_provider_directly() {
 
 #[tokio::test]
 async fn a_trap_in_the_callee_surfaces_in_the_caller() {
-    let (mut host, consumer) = host_with(TRAPPING_PROVIDER).await;
+    let (host, consumer) = host_with(TRAPPING_PROVIDER).await;
 
     let mut results = vec![Val::U32(0)];
     let error = host
@@ -159,10 +159,10 @@ async fn a_trap_in_the_callee_surfaces_in_the_caller() {
     );
 }
 
-/// `docs/spec/linking.md` §3. Asserted so that a wasmtime release which fixes
-/// this is noticed here rather than in production.
+/// `docs/spec/linking.md` §3. The poisoning itself is wasmtime's behaviour;
+/// what this asserts is that it stops at the isolation group.
 #[tokio::test]
-async fn a_trap_poisons_every_instance_in_the_store() {
+async fn a_trap_is_contained_to_its_own_store() {
     let engine = engine().expect("engine");
     let mut host = Host::new(engine.clone());
     let resolver = Resolver::new(engine.clone(), NoRegistry, NoArtifacts);
@@ -175,17 +175,7 @@ async fn a_trap_poisons_every_instance_in_the_store() {
     let plan = resolver.plan(&[], trapping).await.expect("plan");
     let trapping = host.instantiate(plan).await.expect("instantiates");
 
-    let mut results = vec![Val::U32(0)];
-    host.call(
-        good,
-        &adder(),
-        "add",
-        &[Val::U32(1), Val::U32(1)],
-        &mut results,
-    )
-    .await
-    .expect("the good instance works before the trap");
-    assert_eq!(results, vec![Val::U32(2)]);
+    assert_eq!(host.stores(), 2, "nothing forces these two to share");
 
     let mut results = vec![Val::U32(0)];
     host.call(
@@ -199,22 +189,126 @@ async fn a_trap_poisons_every_instance_in_the_store() {
     .expect_err("traps");
 
     let mut results = vec![Val::U32(0)];
-    let error = host
-        .call(
-            good,
-            &adder(),
-            "add",
-            &[Val::U32(2), Val::U32(2)],
-            &mut results,
-        )
+    host.call(
+        good,
+        &adder(),
+        "add",
+        &[Val::U32(20), Val::U32(22)],
+        &mut results,
+    )
+    .await
+    .expect("an unrelated component is untouched by someone else's trap");
+    assert_eq!(results, vec![Val::U32(42)]);
+}
+
+/// The other half of §3: within a group there is no containment.
+#[tokio::test]
+async fn a_trap_poisons_the_rest_of_its_own_group() {
+    let (host, consumer) = host_with(TRAPPING_PROVIDER).await;
+
+    let mut results = vec![Val::U32(0)];
+    host.call(
+        consumer,
+        &caller(),
+        "sum",
+        &[Val::U32(3), Val::U32(4)],
+        &mut results,
+    )
+    .await
+    .expect_err("the provider traps");
+
+    let mut results = vec![Val::U32(0)];
+    host.call(
+        consumer,
+        &caller(),
+        "sum",
+        &[Val::U32(3), Val::U32(4)],
+        &mut results,
+    )
+    .await
+    .expect_err("and the caller's own store is poisoned by the trap it took");
+}
+
+/// `docs/spec/linking.md` §1 groups these components into one store, which is
+/// the right rule — but forwarding a guest-owned resource is not implemented,
+/// so the link fails after the grouping succeeds. See #30.
+#[tokio::test]
+async fn a_resource_carrying_interface_cannot_be_linked_yet() {
+    const WIT: &str = "
+        package test:res@1.0.0;
+
+        interface store {
+            resource handle { constructor(); }
+            put: func(slot: borrow<handle>);
+        }
+
+        world provider { export store; }
+        world consumer { import store; }
+    ";
+
+    let engine = engine().expect("engine");
+    let mut host = Host::new(engine.clone());
+    let resolver = Resolver::new(engine.clone(), NoRegistry, NoArtifacts);
+
+    let provider = support::component_of(&engine, WIT, "provider");
+    let plan = resolver.plan(&[], provider).await.expect("provider plan");
+    host.instantiate(plan).await.expect("provider instantiates");
+    assert_eq!(host.stores(), 1);
+
+    let consumer = support::component_of(&engine, WIT, "consumer");
+    let plan = resolver
+        .plan(&host.live(), consumer)
         .await
-        .expect_err("an unrelated instance is collateral damage");
+        .expect("the resolver is happy: a live component exports it");
+
+    let error = host
+        .instantiate(plan)
+        .await
+        .expect_err("but the resource type is never defined on the linker");
     assert!(
         error
             .to_string()
-            .contains("cannot enter component instance"),
+            .contains("resource implementation is missing"),
         "{error}"
     );
+    assert_eq!(
+        host.stores(),
+        1,
+        "grouping still put them together, which is what #30 will need"
+    );
+}
+
+/// The converse: plain data crosses a store boundary, so nothing is shared.
+#[tokio::test]
+async fn a_plain_data_interface_leaves_components_separated() {
+    let engine = engine().expect("engine");
+    let mut host = Host::new(engine.clone());
+    let resolver = Resolver::new(engine.clone(), NoRegistry, NoArtifacts);
+
+    let provider = Component::new(&engine, PROVIDER).expect("provider compiles");
+    let plan = resolver.plan(&[], provider).await.expect("provider plan");
+    host.instantiate(plan).await.expect("provider instantiates");
+
+    let consumer = Component::new(&engine, CONSUMER).expect("consumer compiles");
+    let plan = resolver
+        .plan(&host.live(), consumer)
+        .await
+        .expect("consumer plan");
+    let consumer = host.instantiate(plan).await.expect("consumer instantiates");
+
+    assert_eq!(host.stores(), 2, "each gets its own");
+
+    let mut results = vec![Val::U32(0)];
+    host.call(
+        consumer,
+        &caller(),
+        "sum",
+        &[Val::U32(20), Val::U32(22)],
+        &mut results,
+    )
+    .await
+    .expect("and the call still crosses between them");
+    assert_eq!(results, vec![Val::U32(42)]);
 }
 
 #[tokio::test]
